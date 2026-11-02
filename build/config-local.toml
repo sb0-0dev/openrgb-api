@@ -1,0 +1,9 @@
+[server]
+listen_address = '127.0.0.1:8742'
+admin_address = '127.0.0.1:8743'
+public_url = ''
+
+[openrgb]
+host = '127.0.0.1'
+port = '6742'
+client_name = 'openrgb-api'

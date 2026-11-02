@@ -1,0 +1,13 @@
+.git
+release
+documentation/*
+!documentation/embed.go
+!documentation/openapi.yaml
+build
+scripts
+*.md
+Dockerfile
+.dockerignore
+go.work
+go.work.sum
+*.log

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenRGB API</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+</head>
+<body>
+  <main class="shell">
+    <header class="header">
+      <div>
+        <p class="eyebrow">LOCAL CONTROL PANEL</p>
+        <h1>OpenRGB API</h1>
+        <p class="subtitle">Edit the local service connection and server settings.</p>
+      </div>
+      <nav class="header-actions" aria-label="Control panel links">
+        <a class="docs-link" href="/docs">API docs</a>
+        <span id="status" class="status">Loading</span>
+      </nav>
+    </header>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">CONFIGURATION</p>
+          <h2>Service settings</h2>
+        </div>
+        <span id="config-path" class="path"></span>
+      </div>
+
+      <form id="config-form">
+        <fieldset>
+          <legend>Web server</legend>
+          <label>
+            <span class="label-text">API address <span class="hint" tabindex="0" role="note" aria-label="About the API address" data-tip="Used by paired phones; every request needs a token. Keep 127.0.0.1 unless phones should connect over the network. Docker: leave 0.0.0.0, and choose who can connect with the published port in compose.yaml (OPENRGB_API_BIND).">?</span></span>
+            <input name="listen_address" type="text" autocomplete="off" required>
+          </label>
+          <label>
+            <span class="label-text">Control panel address <span class="hint" tabindex="0" role="note" aria-label="About the control panel address" data-tip="Serves this page and pairing. Keep 127.0.0.1 on a normal install. Docker: leave 0.0.0.0,             as only the published port in compose.yaml (127.0.0.1:8743) keeps it private.">?</span></span>
+                       <input name="admin_address" type="text" autocomplete="off" required>
+          </label>
+          <label>
+            <span class="label-text">Public URL (optional) <span class="hint" tabindex="0" role="note" aria-label="About the public URL" data-tip="The address phones use, encoded in the pairing QR code. Found automatically on a normal install. Docker: set it, for example http://192.168.1.10:8742.">?</span></span>
+            <input name="public_url" type="text" autocomplete="off" placeholder="http://192.168.1.10:8742">
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>OpenRGB SDK</legend>
+          <label>
+            Host
+            <input name="host" type="text" autocomplete="off" required>
+          </label>
+          <label>
+            Port
+            <input name="port" type="text" inputmode="numeric" autocomplete="off" required>
+          </label>
+          <label>
+            Client name
+            <input name="client_name" type="text" autocomplete="off" required>
+          </label>
+        </fieldset>
+
+        <div class="actions">
+          <button type="submit">Save configuration</button>
+          <span id="message" role="status"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">DISCOVERY</p>
+          <h2>Connected controllers</h2>
+        </div>
+        <button id="refresh" class="secondary" type="button">Refresh</button>
+      </div>
+      <div id="controllers" class="controllers" aria-live="polite">Loading controllers...</div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">MOBILE ACCESS</p>
+          <h2>Paired devices</h2>
+        </div>
+      </div>
+      <div class="pairing-layout">
+        <div class="pairing-controls">
+          <p class="pairing-copy">Pair a phone from this computer: scan the QR code in the mobile app, or enter the one-time code.</p>
+          <div class="actions">
+            <button id="start-pairing" type="button">Generate pairing code</button>
+            <span id="pairing-status" role="status"></span>
+          </div>
+        </div>
+        <div id="pairing-code-panel" class="pairing-code-panel" hidden>
+          <img id="pairing-qr" class="pairing-qr" alt="Pairing QR code" hidden>
+          <span>Pairing code</span>
+          <code id="pairing-code"></code>
+          <small id="pairing-expiry"></small>
+          <label id="pairing-url-label" hidden>
+            Phone address
+            <select id="pairing-url"></select>
+          </label>
+          <small id="pairing-qr-hint" hidden>No QR code: no phone-reachable address found. Set a Public URL above.</small>
+        </div>
+      </div>
+      <div id="paired-devices" class="paired-devices" aria-live="polite"></div>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

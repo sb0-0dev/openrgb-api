@@ -1,0 +1,1248 @@
+openapi: 3.1.0
+info:
+  title: OpenRGB API
+  version: 0.0.1
+  description: |
+    HTTP API for controlling devices through an OpenRGB SDK server.
+
+    This specification describes JSON API endpoints; the embedded browser UI
+    and its static assets are not included.
+
+    The network-facing API is intended for trusted local networks and uses
+    bearer tokens issued by pairing. The control-panel endpoints are available
+    only from local requests on the separate admin listener. The server can
+    trust additional client CIDRs through OPENRGB_API_LOCAL_NETWORKS (intended
+    for container host access); the control-panel Host header must still be a
+    loopback name. Traffic is
+    plain HTTP unless deployed behind a separately configured HTTPS proxy.
+servers:
+  - url: http://127.0.0.1:8742
+    description: Default API listener; replace with the configured address.
+tags:
+  - name: Health
+  - name: Pairing
+  - name: Configuration
+  - name: Server
+  - name: Devices
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Check whether the HTTP process is running
+      security: []
+      responses:
+        "200":
+          description: The process is running.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: ok
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/pairing/start:
+    post:
+      tags: [Pairing]
+      summary: Start a pairing session
+      description: |
+        Control-panel listener only; subject to the local-request and loopback
+        Host checks. OPENRGB_API_LOCAL_NETWORKS can trust additional client
+        CIDRs for container host access. Starting a new session invalidates the previous code.
+        The request body is optional.
+      servers:
+        - url: http://127.0.0.1:8743
+          description: Default loopback-only control-panel listener.
+      security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                server_url:
+                  type: string
+                  description: Optional URL from server_urls to encode in the QR code.
+      responses:
+        "200":
+          description: Pairing code created. Codes expire after five minutes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PairingStartResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/pairing/exchange:
+    post:
+      tags: [Pairing]
+      summary: Exchange a pairing code for an access token
+      description: The one-time pairing code can be used once and expires after five minutes.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PairingExchangeRequest"
+      responses:
+        "201":
+          description: Pairing succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PairingExchangeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: Pairing code is invalid, expired, already used, or locked out.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/version:
+    get:
+      tags: [Server]
+      summary: Get API version and supported features
+      description: Requires a paired device bearer token.
+      responses:
+        "200":
+          description: API compatibility and feature capabilities.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionResponse"
+              example:
+                apiVersion: 1
+                minimumClientVersion: "0.0.1"
+                recommendedApiVersion: 1
+                features: [controllers, effects, lightingProfiles]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/pairing/devices:
+    get:
+      tags: [Pairing]
+      summary: List paired devices
+      description: Control-panel listener only; local computer access is required.
+      servers:
+        - url: http://127.0.0.1:8743
+      security: []
+      responses:
+        "200":
+          description: Paired devices in oldest-first order. Tokens are not included.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [devices]
+                properties:
+                  devices:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PairedDevice"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/pairing/devices/{id}:
+    delete:
+      tags: [Pairing]
+      summary: Revoke a paired device
+      description: Control-panel listener only; local computer access is required.
+      servers:
+        - url: http://127.0.0.1:8743
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Paired device ID.
+      responses:
+        "204":
+          description: Device token revoked.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/config:
+    get:
+      tags: [Configuration]
+      summary: Get application configuration
+      description: Control-panel listener only; local computer access is required.
+      servers:
+        - url: http://127.0.0.1:8743
+      security: []
+      responses:
+        "200":
+          description: Current in-memory settings and configuration file path.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      tags: [Configuration]
+      summary: Validate, save, and update application configuration
+      description: |
+        Control-panel listener only; local computer access is required.
+        Address and SDK connection changes take effect after restarting the service.
+      servers:
+        - url: http://127.0.0.1:8743
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Config"
+      responses:
+        "200":
+          description: Configuration saved and updated in memory.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/controllers:
+    get:
+      tags: [Server]
+      summary: List discovered controllers
+      responses:
+        "200":
+          description: Controller summaries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Controller"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/server/rescan:
+    post:
+      tags: [Server]
+      summary: Rescan for connected devices
+      responses:
+        "200":
+          description: Rescan requested.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+              example:
+                status: rescanned
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/server/profiles:
+    get:
+      tags: [Server]
+      summary: List available profiles
+      responses:
+        "200":
+          description: Profile names.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [profiles]
+                properties:
+                  profiles:
+                    type: array
+                    items:
+                      type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/server/profiles/load:
+    post:
+      tags: [Server]
+      summary: Load a profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileRequest"
+      responses:
+        "200":
+          description: Profile loaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileOperationResponse"
+              example:
+                status: loaded
+                profile: Gaming
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/server/profiles/save:
+    post:
+      tags: [Server]
+      summary: Save the current state as a profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileRequest"
+      responses:
+        "200":
+          description: Profile saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileOperationResponse"
+              example:
+                status: saved
+                profile: Gaming
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/server/profiles/delete:
+    post:
+      tags: [Server]
+      summary: Delete a profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileRequest"
+      responses:
+        "200":
+          description: Profile deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileOperationResponse"
+              example:
+                status: deleted
+                profile: Gaming
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/server/effects:
+    get:
+      tags: [Server]
+      summary: List configured effects
+      responses:
+        "200":
+          description: Effect names and the currently enabled subset.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [effects, enabled_effects]
+                properties:
+                  effects:
+                    type: array
+                    items:
+                      type: string
+                  enabled_effects:
+                    type: array
+                    items:
+                      type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/server/effect:
+    post:
+      tags: [Server]
+      summary: Enable or disable an effect
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EffectRequest"
+      responses:
+        "200":
+          description: Effect state updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EffectResponse"
+              example:
+                status: updated
+                effect: Ambient
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/device/leds:
+    get:
+      tags: [Devices]
+      summary: List device LEDs and current colors
+      parameters:
+        - $ref: "#/components/parameters/ControllerID"
+      responses:
+        "200":
+          description: LEDs in controller order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LED"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+    post:
+      tags: [Devices]
+      summary: Set the color of every LED
+      description: The colors array must contain exactly one color for each device LED.
+      parameters:
+        - $ref: "#/components/parameters/ControllerID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [colors]
+              properties:
+                colors:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/RGBColor"
+      responses:
+        "200":
+          description: LED colors updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, leds]
+                properties:
+                  status:
+                    type: string
+                    const: updated
+                  leds:
+                    type: integer
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/device/zones:
+    get:
+      tags: [Devices]
+      summary: List device zones
+      parameters:
+        - $ref: "#/components/parameters/ControllerID"
+      responses:
+        "200":
+          description: Zones and their LED and segment counts.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Zone"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/device/zones/resize:
+    post:
+      tags: [Devices]
+      summary: Resize a named zone
+      parameters:
+        - $ref: "#/components/parameters/ControllerID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [zone, size]
+              properties:
+                zone:
+                  type: string
+                  minLength: 1
+                size:
+                  type: integer
+                  minimum: 0
+                  maximum: 4294967295
+                  description: Requested number of LEDs.
+      responses:
+        "200":
+          description: Zone resized.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, zone]
+                properties:
+                  status:
+                    type: string
+                    const: resized
+                  zone:
+                    type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/device/segments:
+    get:
+      tags: [Devices]
+      summary: List segments in a zone
+      parameters:
+        - $ref: "#/components/parameters/ControllerID"
+        - name: zone
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 4294967295
+          description: Zero-based zone index.
+      responses:
+        "200":
+          description: Segments in the selected zone.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SegmentResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+    post:
+      tags: [Devices]
+      summary: Replace a zone's segment layout
+      description: Segments must cover every LED exactly once, without gaps or overlaps.
+      parameters:
+        - $ref: "#/components/parameters/ControllerID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [zone, segments]
+              properties:
+                zone:
+                  type: integer
+                  minimum: 0
+                  description: Zero-based zone index.
+                zone_leds:
+                  type: integer
+                  minimum: 0
+                  maximum: 4294967295
+                  description: Intended zone size; zero uses the current zone size.
+                segments:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: "#/components/schemas/Segment"
+      responses:
+        "200":
+          description: Segments added.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, zone, segments]
+                properties:
+                  status:
+                    type: string
+                    const: added
+                  zone:
+                    type: integer
+                  segments:
+                    type: integer
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+    delete:
+      tags: [Devices]
+      summary: Clear segments from a zone
+      parameters:
+        - $ref: "#/components/parameters/ControllerID"
+        - name: zone
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+          description: Zero-based zone index.
+      responses:
+        "200":
+          description: Segments cleared.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, zone]
+                properties:
+                  status:
+                    type: string
+                    const: cleared
+                  zone:
+                    type: integer
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/device/refresh:
+    post:
+      tags: [Devices]
+      summary: Refresh a device's cached state
+      parameters:
+        - $ref: "#/components/parameters/ControllerID"
+      responses:
+        "200":
+          description: Device refreshed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, id]
+                properties:
+                  status:
+                    type: string
+                    const: refreshed
+                  id:
+                    type: integer
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/device/modes:
+    get:
+      tags: [Devices]
+      summary: List device modes and supported options
+      parameters:
+        - $ref: "#/components/parameters/ControllerID"
+      responses:
+        "200":
+          description: Modes and their option ranges and capabilities.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Mode"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/device/mode:
+    post:
+      tags: [Devices]
+      summary: Select a device mode
+      parameters:
+        - $ref: "#/components/parameters/ControllerID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetModeRequest"
+      responses:
+        "200":
+          description: Mode updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, mode]
+                properties:
+                  status:
+                    type: string
+                    const: updated
+                  mode:
+                    type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/device/color:
+    post:
+      tags: [Devices]
+      summary: Set a device, zone, LED, or segment color
+      description: |
+        Omit all selectors to target the whole device. A segment requires a
+        zone. An LED cannot be combined with a zone or segment.
+      parameters:
+        - $ref: "#/components/parameters/ControllerID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetColorRequest"
+      responses:
+        "200":
+          description: Color updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, target]
+                properties:
+                  status:
+                    type: string
+                    const: updated
+                  target:
+                    type: string
+                    description: device, zone:N, led:N, or segment:Z/S.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque token returned by pairing
+  parameters:
+    ControllerID:
+      name: id
+      in: query
+      required: true
+      description: Zero-based controller ID from GET /api/controllers.
+      schema:
+        type: integer
+        minimum: 0
+  responses:
+    BadRequest:
+      description: Invalid request, query parameter, or JSON body.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+          description: Bearer authentication challenge.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Request is not allowed from this origin or machine.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Controller, device, zone, or paired device was not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    BadGateway:
+      description: The OpenRGB SDK server operation failed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InternalError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    StatusResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+    VersionResponse:
+      type: object
+      required: [apiVersion, minimumClientVersion, recommendedApiVersion, features]
+      properties:
+        apiVersion:
+          type: integer
+          minimum: 1
+          description: Integer generation of the backend API contract, starting at 1.
+          example: 1
+        minimumClientVersion:
+          type: string
+          description: Oldest OpenRGB Link client version supported by this backend.
+          example: 1.0.0
+        recommendedApiVersion:
+          type: integer
+          minimum: 1
+          description: API version recommended for the full feature set.
+          example: 1.0.0
+        features:
+          type: array
+          items:
+            type: string
+          description: Capability identifiers implemented by this backend.
+          example: [controllers, effects, lightingProfiles]
+        message:
+          type: string
+          description: Optional compatibility or upgrade message for the client.
+    PairingStartResponse:
+      type: object
+      required: [code, expires_at]
+      properties:
+        code:
+          type: string
+          description: One-time 13-character code.
+        expires_at:
+          type: string
+          format: date-time
+        qr_image:
+          type: string
+          format: uri
+          description: PNG data URL; omitted when no usable server URL is available.
+        server_url:
+          type: string
+          format: uri
+        server_urls:
+          type: array
+          items:
+            type: string
+            format: uri
+    PairingExchangeRequest:
+      type: object
+      required: [code, device_name]
+      properties:
+        code:
+          type: string
+          description: Pairing code; whitespace, dashes, and case are normalized.
+        device_name:
+          type: string
+          minLength: 1
+          maxLength: 64
+    PairingExchangeResponse:
+      type: object
+      required: [access_token, token_type, device]
+      properties:
+        access_token:
+          type: string
+          description: Store securely; it is not returned again.
+        token_type:
+          type: string
+          const: Bearer
+        device:
+          $ref: "#/components/schemas/PairedDevice"
+    PairedDevice:
+      type: object
+      required: [id, name, created_at]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    Config:
+      type: object
+      required: [server, openrgb]
+      properties:
+        server:
+          $ref: "#/components/schemas/ServerConfig"
+        openrgb:
+          $ref: "#/components/schemas/OpenRGBConfig"
+    ConfigResponse:
+      allOf:
+        - $ref: "#/components/schemas/Config"
+        - type: object
+          required: [path]
+          properties:
+            path:
+              type: string
+    ServerConfig:
+      type: object
+      required: [listen_address, admin_address]
+      properties:
+        listen_address:
+          type: string
+          minLength: 1
+        admin_address:
+          type: string
+          minLength: 1
+          description: Required host:port for the control panel; must differ from listen_address.
+        public_url:
+          type: string
+          description: Optional HTTP(S) URL without a path.
+    OpenRGBConfig:
+      type: object
+      required: [host, port, client_name]
+      properties:
+        host:
+          type: string
+          minLength: 1
+        port:
+          type: string
+          minLength: 1
+        client_name:
+          type: string
+          minLength: 1
+    Controller:
+      type: object
+      required: [id, name, type, type_name, vendor, model, serial, modes, zones, leds]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        type:
+          type: integer
+        type_name:
+          type: string
+        vendor:
+          type: string
+        model:
+          type: string
+        serial:
+          type: string
+        modes:
+          type: integer
+        zones:
+          type: integer
+        leds:
+          type: integer
+    ProfileRequest:
+      type: object
+      required: [profile]
+      properties:
+        profile:
+          type: string
+          minLength: 1
+    ProfileOperationResponse:
+      type: object
+      required: [status, profile]
+      properties:
+        status:
+          type: string
+          enum: [loaded, saved, deleted]
+        profile:
+          type: string
+    EffectRequest:
+      type: object
+      required: [effect, enable]
+      properties:
+        effect:
+          type: string
+          minLength: 1
+        enable:
+          type: boolean
+    EffectResponse:
+      type: object
+      required: [status, effect]
+      properties:
+        status:
+          type: string
+          const: updated
+        effect:
+          type: string
+    RGBColor:
+      type: object
+      required: [R, G, B]
+      properties:
+        R:
+          type: integer
+          minimum: 0
+          maximum: 255
+        G:
+          type: integer
+          minimum: 0
+          maximum: 255
+        B:
+          type: integer
+          minimum: 0
+          maximum: 255
+    LED:
+      type: object
+      required: [name, value]
+      properties:
+        name:
+          type: string
+        value:
+          type: integer
+        color:
+          $ref: "#/components/schemas/RGBColor"
+    Zone:
+      type: object
+      required: [name, zone_type, leds, segments]
+      properties:
+        name:
+          type: string
+        zone_type:
+          type: integer
+        leds:
+          type: integer
+          minimum: 0
+        segments:
+          type: integer
+          minimum: 0
+    Segment:
+      type: object
+      required: [name, segment_type, start_idx, num_leds]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        segment_type:
+          type: integer
+        start_idx:
+          type: integer
+          minimum: 0
+          maximum: 4294967295
+        num_leds:
+          type: integer
+          minimum: 1
+          maximum: 4294967295
+    SegmentResponse:
+      allOf:
+        - $ref: "#/components/schemas/Segment"
+        - type: object
+          required: [index]
+          properties:
+            index:
+              type: integer
+              minimum: 0
+    Mode:
+      type: object
+      required:
+        - name
+        - is_current
+        - speed_min
+        - speed_max
+        - brightness_min
+        - brightness_max
+        - colors_min
+        - colors_max
+        - color_mode
+        - color_mode_name
+        - colors
+        - supports_speed
+        - supports_brightness
+        - supports_direction_lr
+        - supports_direction_ud
+        - supports_direction_hv
+        - supports_unique_led_color
+        - supports_mode_color
+        - supports_random_color
+      properties:
+        name:
+          type: string
+        is_current:
+          type: boolean
+        speed_min:
+          type: integer
+          minimum: 0
+        speed_max:
+          type: integer
+          minimum: 0
+        brightness_min:
+          type: integer
+          minimum: 0
+        brightness_max:
+          type: integer
+          minimum: 0
+        colors_min:
+          type: integer
+          minimum: 0
+        colors_max:
+          type: integer
+          minimum: 0
+        color_mode:
+          type: integer
+        color_mode_name:
+          type: string
+        colors:
+          type: array
+          items:
+            $ref: "#/components/schemas/RGBColor"
+        supports_speed:
+          type: boolean
+        supports_brightness:
+          type: boolean
+        supports_direction_lr:
+          type: boolean
+        supports_direction_ud:
+          type: boolean
+        supports_direction_hv:
+          type: boolean
+        supports_unique_led_color:
+          type: boolean
+        supports_mode_color:
+          type: boolean
+        supports_random_color:
+          type: boolean
+    SetModeRequest:
+      type: object
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          minLength: 1
+        brightness:
+          type: integer
+          minimum: 0
+          maximum: 4294967295
+          description: Optional. When omitted the mode keeps its current brightness; an explicit 0 sets brightness to 0.
+        direction:
+          type: string
+          enum: [left, right, up, down, horizontal, vertical]
+          default: left
+        colors:
+          type: array
+          items:
+            $ref: "#/components/schemas/RGBColor"
+        color_mode:
+          type: integer
+          minimum: 0
+          maximum: 4294967295
+        save_to_device:
+          type: boolean
+    SetColorRequest:
+      type: object
+      required: [r, g, b]
+      properties:
+        r:
+          type: integer
+          minimum: 0
+          maximum: 255
+        g:
+          type: integer
+          minimum: 0
+          maximum: 255
+        b:
+          type: integer
+          minimum: 0
+          maximum: 255
+        led:
+          type: integer
+          minimum: 0
+          description: Optional zero-based LED index.
+        zone:
+          type: integer
+          minimum: 0
+          description: Optional zero-based zone index.
+        segment:
+          type: integer
+          minimum: 0
+          description: Optional zero-based segment index; requires zone.

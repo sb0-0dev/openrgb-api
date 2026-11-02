@@ -1,0 +1,27 @@
+services:
+  openrgb-api:
+    build:
+      context: .
+    image: openrgb-api
+    restart: unless-stopped
+    ports:
+      # API used by paired phones. Every request needs a bearer token. Set
+      # OPENRGB_API_BIND=127.0.0.1 to keep it reachable from this computer only.
+      - "${OPENRGB_API_BIND:-0.0.0.0}:8742:8742"
+      # Control panel and pairing. Keep this on loopback; never publish it on the network.
+      - "127.0.0.1:8743:8743"
+    extra_hosts:
+      # Lets Linux hosts resolve host.docker.internal (Docker Desktop does this already).
+      - "host.docker.internal:host-gateway"
+    environment:
+      # Requests arriving through Docker's gateway count as this computer.
+      OPENRGB_API_LOCAL_NETWORKS: "172.16.0.0/12"
+      # The address phones use, shown in the pairing QR code, e.g. "http://192.168.1.183:8742".
+      # A container cannot detect the host's LAN address, so set this to scan a QR code.
+      OPENRGB_API_PUBLIC_URL: "${OPENRGB_API_PUBLIC_URL:-http://<host-ip>:8742}"
+    volumes:
+      - openrgb-api-data:/data
+
+volumes:
+  openrgb-api-data:
+
