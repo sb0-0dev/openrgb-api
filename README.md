@@ -14,8 +14,7 @@ It is built on the [openrgb-golang](https://github.com/sb0-0dev/openrgb-golang) 
 
 Prebuilt installers and a container image are available:
 
-- **Windows:** an installer that sets up a Windows service, with an option to allow private-network access.
-	- Networks in windows often default to public, which may block private-network access required by the service. Simply add public to the scope of the firewall rule allowed networks if needed.
+- **Windows:** an installer that sets up a Windows service, with firewall options to access the network.
 - **Linux:** a `.tar.gz` containing `install.sh` (systemd service, `--lan` option) and `uninstall.sh`.
 - **Docker:** a `Dockerfile` and `compose.yaml`.
 
@@ -126,6 +125,12 @@ See [documentation/setup.md](documentation/setup.md) for installer and Docker-sp
 ## Status
 
 🚧 Work in progress
+
+## Related Projects
+
+- [OpenRGB](https://openrgb.org/): The open-source RGB lighting control application that this client communicates with.
+- [openrgb-golang](https://github.com/sb0-0dev/openrgb-golang): A Go client library for communicating with the OpenRGB SDK.
+- [openrgb-link](https://github.com/sb0-0dev/openrgb-link): A React Native mobile application for controlling OpenRGB remotely using the openrgb-api.
 
 ## Copyright
 
