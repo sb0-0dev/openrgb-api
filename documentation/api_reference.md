@@ -281,19 +281,14 @@ Missing or invalid bearer tokens return `401` and include `WWW-Authenticate: Bea
 
 ## Quick Examples
 
+For a quick end-to-end walkthrough (health check, pairing, listing controllers, setting a basic colour), see the Usage section of [README.md](../README.md).
+
 Replace `TOKEN` with the token returned by pairing. The API listener always requires it; the control panel listener (`127.0.0.1:8743`) does not.
 
 ```sh
-# List controllers
-curl -H "Authorization: Bearer TOKEN" http://192.168.1.20:8742/api/controllers
-
 # Load a saved profile
 curl -X POST -H "Authorization: Bearer TOKEN" -H "Content-Type: application/json" \
 	-d '{"profile":"Gaming"}' http://192.168.1.20:8742/api/server/profiles/load
-
-# Set controller 0 to red
-curl -X POST -H "Authorization: Bearer TOKEN" -H "Content-Type: application/json" \
-	-d '{"r":255,"g":0,"b":0}' "http://192.168.1.20:8742/api/device/color?id=0"
 
 # Set one zone of controller 0 to blue
 curl -X POST -H "Authorization: Bearer TOKEN" -H "Content-Type: application/json" \

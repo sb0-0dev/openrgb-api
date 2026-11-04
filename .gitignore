@@ -33,6 +33,7 @@ paired-devices.json
 *log
 /release/
 artifacts/
+checksums.txt
 
 # Editor/IDE
 # .idea/

@@ -1,109 +1,111 @@
 # Contributing
 
-Contributions are welcome, including bug fixes, improvements, documentation, and new features.
+Contributions are welcome, including bug fixes, improvements, documentation, and new features for the OpenRGB API service.
 
 ## Getting Started
 
-Make sure you have Go installed.
+You need Go 1.26.1 or newer to build and test this project. To exercise the service against real hardware, you also need OpenRGB running with its SDK server enabled.
 
 Clone the repository:
 
-```
-git https://github.com/sb0-0dev/openrgb-golang.git
-cd openrgb-golang
-```
-
-Download dependencies:
-```
-go mod download
+```sh
+git clone https://github.com/sb0-0dev/openrgb-api.git
+cd openrgb-api
 ```
 
-Run the tests:
-```
+Run the tests (this also downloads dependencies as needed):
+
+```sh
 go test ./...
 ```
+
+To run the service locally:
+
+```sh
+go run ./cmd/openrgb-api
+```
+
+For configuration, ports, and building installers, see [README.md](README.md) and [documentation/setup.md](documentation/setup.md) (especially Building from source).
+
 ## Making Changes
 
 Create a branch for your changes:
-```
+
+```sh
 git checkout -b fix/my-change
 ```
-Keep changes focused and follow the existing Go style and conventions.
 
-Format your code before submitting:
+Keep changes focused and follow the existing Go style and conventions. Format Go code before submitting:
 
-```
-gofmt -w .
+```sh
+gofmt -w ./cmd
 ```
 
-You can also check your code with:
-```
+You can also check Go code with:
+
+```sh
 go vet ./...
 ```
 
-If you add or change functionality, please add or update tests.
+If you change behavior, add or update the relevant tests. The HTTP handlers, authentication, pairing, server behavior, and configuration have tests under `cmd/openrgb-api`.
+
+## API and Documentation Changes
+
+When changing an endpoint, keep the handler behavior, response models, tests, API reference, and OpenAPI specification in sync. Update `documentation/api_reference.md` and `documentation/openapi.yaml` when requests, responses, errors, or authentication requirements change. The API reference is also served through the control panel's `/docs` page; its embedded documentation is maintained in `cmd/openrgb-api/docs.go` and `documentation/embed.go`.
+
+For changes to the control panel, update the relevant files under `cmd/openrgb-api/web`. For configuration, installation, or runtime changes, update `README.md` and/or `documentation/setup.md` as appropriate. Public Go types and functions should have clear GoDoc comments.
 
 ## Testing
 
-All tests should pass before opening a pull request:
-```
+Run the full test suite before opening a pull request:
+
+```sh
 go test ./...
 ```
 
-For more detailed test output:
-```
+For detailed test output:
+
+```sh
 go test -v ./...
 ```
+
+If your change affects interaction with OpenRGB, pairing, network listeners, or packaging, also describe any manual verification that requires a running OpenRGB server or a particular operating system. Do not expose the service to an untrusted network while testing; see the security guidance in [README.md](README.md).
+
 ## Pull Requests
 
 When opening a pull request, please:
 
-- Explain what you changed and why.
+- Explain what changed and why.
 - Include tests for new or changed behavior.
-- Make sure go test ./... passes.
-- Run gofmt and go vet.
+- Run the checks listed under [Making Changes](#making-changes) and [Testing](#testing).
+- Update the API reference, OpenAPI specification, or setup documentation when relevant.
 - Keep the pull request focused on one change where possible.
-- Ensure your contribution meets the project's coding and quality standards.
-- Pull requests that meet these standards may be prioritised for review and consideration.
 
 ## AI-Assisted Contributions
 
-AI coding tools are permitted, but contributors remain responsible for all code they submit.
-
-Contributors should review AI-generated code carefully for correctness, security, maintainability, licensing concerns, and consistency with this project.
-
-AI use does not replace the contributor's responsibility for understanding and maintaining their contribution.
+AI coding tools are permitted, but contributors remain responsible for all code they submit. Review AI-generated code for correctness, security, maintainability, licensing concerns, and consistency with this project. AI use does not replace the contributor's responsibility for understanding and maintaining their contribution.
 
 ## Commit Messages
 
-Use clear, descriptive commit messages.
+Use clear, descriptive commit messages. For example:
 
-Examples:
-
-Added support for custom timeouts
-Updated package documentation
+```text
+Add support for custom timeouts
+Update API authentication documentation
+```
 
 ## Reporting Bugs
 
-Please open an issue if you find a bug.
+Please open an issue and include:
 
-Include:
-
-- A description of the problem.
-- Steps to reproduce it.
-- The expected behavior.
-- The actual behavior.
-- Your Go version.
-- Any relevant code or error messages.
-
-## Documentation
-
-If your change affects the public API, please update the relevant Go documentation and examples.
-
-Public functions, types, and packages should have clear GoDoc comments.
+- A description of the problem and steps to reproduce it.
+- The expected and actual behavior.
+- Your operating system and Go version, when relevant.
+- Relevant API requests, responses, logs, or error messages. Remove bearer tokens, pairing codes, and other secrets before sharing.
+- Whether the issue requires a running OpenRGB SDK server or particular hardware.
 
 ## Questions
 
-If you're unsure about something, feel free to open an issue or discussion.
+If you're unsure about a contribution, feel free to open an issue or discussion.
 
 Thanks for contributing!

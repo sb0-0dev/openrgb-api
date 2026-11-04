@@ -67,7 +67,7 @@ Replace `127.0.0.1` with the computer's address when connecting from another dev
 
 ### Try it in Swagger UI
 
-Open `http://127.0.0.1:8743/docs` on the computer running the service to explore and call the API interactively. It loads a pinned Swagger UI release (5.29.1, verified with Subresource Integrity hashes) from cdnjs, so it needs internet access.
+Open `http://127.0.0.1:8743/docs` on the computer running the service to explore and call the API interactively. See [documentation/api_reference.md](documentation/api_reference.md) for OpenAPI and Swagger UI details.
 
 ## Documentation
 
